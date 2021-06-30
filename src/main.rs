@@ -6,7 +6,7 @@ use nom::{
     error::VerboseError,
     multi::fold_many0,
 };
-use std::{borrow::Cow, str::Utf8Error};
+use std::{borrow::Cow, fs, str::Utf8Error};
 use thiserror::Error;
 
 type IResult<'a, T> = nom::IResult<&'a [u8], T, VerboseError<&'a [u8]>>;
@@ -50,9 +50,9 @@ enum AhError {
 
 fn main() -> Result<(), AhError> {
     let opts = Opts::parse();
-    let input = std::fs::read(opts.input)?;
+    let input = fs::read(opts.input)?;
     let output = parse(&input)?;
-    std::fs::write(opts.output, output)?;
+    fs::write(opts.output, output)?;
     Ok(())
 }
 
