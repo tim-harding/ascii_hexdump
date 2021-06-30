@@ -1,11 +1,10 @@
 use clap::Clap;
 use nom::{
     branch::alt,
-    bytes::complete::{take_till, take_till1, take_while, take_while1},
-    combinator::{eof, map, map_res, success, value},
+    bytes::complete::{take_till1, take_while1},
+    combinator::{eof, map, map_res},
     error::{context, VerboseError},
-    multi::{fold_many0, many_till},
-    sequence::terminated,
+    multi::many_till,
 };
 use std::{borrow::Cow, fs, str::Utf8Error};
 use thiserror::Error;
@@ -97,6 +96,9 @@ fn combine(b: &[u8]) -> IResult<String> {
 fn fragments(b: &[u8]) -> IResult<Vec<Fragment>> {
     context(
         "fragments",
+        // Todo: It'd be cooler to fold the results in this step,
+        // but many_till seems to be the only combinator that
+        // doesn't break when it reaches EOF.
         map(many_till(fragment, eof), |(fragment, _)| fragment),
     )(b)
 }
