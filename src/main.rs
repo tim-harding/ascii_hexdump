@@ -1,10 +1,11 @@
 use clap::Clap;
 use nom::{
     branch::alt,
-    bytes::complete::{take_till, take_while},
-    combinator::{map, map_res},
-    error::VerboseError,
-    multi::fold_many0,
+    bytes::complete::{take_till, take_till1, take_while, take_while1},
+    combinator::{eof, map, map_res, success, value},
+    error::{context, VerboseError},
+    multi::{fold_many0, many_till},
+    sequence::terminated,
 };
 use std::{borrow::Cow, fs, str::Utf8Error};
 use thiserror::Error;
@@ -19,6 +20,7 @@ struct Opts {
     output: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Fragment<'a> {
     Ascii(&'a str),
     Bytes(&'a [u8]),
@@ -57,16 +59,19 @@ fn main() -> Result<(), AhError> {
 }
 
 fn parse(b: &[u8]) -> Result<String, AhError> {
-    let (_i, s) = match fragments(b) {
+    let (_i, s) = match combine(b) {
         Ok(parts) => Ok(parts),
         Err(err) => {
             use nom::Err::*;
             match err {
                 Incomplete(needed) => {
-                    println!("Needed more bytes: {:?}", needed);
+                    eprintln!("Needed more bytes: {:?}", needed);
                 }
                 Error(err) | Failure(err) => {
-                    println!("Error while parsing\n{:?}", err);
+                    eprintln!("Errors while parsing:");
+                    for err in err.errors {
+                        eprintln!("{}, {:?}", err.0.len(), err.1);
+                    }
                 }
             }
             Err(AhError::Parse)
@@ -75,24 +80,37 @@ fn parse(b: &[u8]) -> Result<String, AhError> {
     Ok(s)
 }
 
-fn fragments(b: &[u8]) -> IResult<String> {
-    fold_many0(fragment, String::new(), |mut s, fragment| {
-        let cow: Cow<_> = fragment.into();
-        s.push_str(&cow);
-        s
-    })(b)
+fn combine(b: &[u8]) -> IResult<String> {
+    context(
+        "combine",
+        map(fragments, |fragments| {
+            let mut s = String::new();
+            for fragment in fragments {
+                let cow: Cow<_> = fragment.into();
+                s.push_str(&cow);
+            }
+            s
+        }),
+    )(b)
+}
+
+fn fragments(b: &[u8]) -> IResult<Vec<Fragment>> {
+    context(
+        "fragments",
+        map(many_till(fragment, eof), |(fragment, _)| fragment),
+    )(b)
 }
 
 fn fragment(b: &[u8]) -> IResult<Fragment> {
-    alt((ascii, bytes))(b)
+    context("fragment", alt((ascii, bytes)))(b)
 }
 
 fn bytes(b: &[u8]) -> IResult<Fragment> {
-    map(take_till(is_ascii), Fragment::Bytes)(b)
+    context("bytes", map(take_till1(is_ascii), Fragment::Bytes))(b)
 }
 
 fn ascii(b: &[u8]) -> IResult<Fragment> {
-    map_res(take_while(is_ascii), ascii_to_fragment)(b)
+    context("ascii", map_res(take_while1(is_ascii), ascii_to_fragment))(b)
 }
 
 fn ascii_to_fragment(b: &[u8]) -> Result<Fragment, Utf8Error> {
