@@ -24,9 +24,9 @@ enum Fragment<'a> {
     Bytes(&'a [u8]),
 }
 
-impl<'a> Into<Cow<'a, str>> for Fragment<'a> {
-    fn into(self) -> Cow<'a, str> {
-        match self {
+impl<'a> From<Fragment<'a>> for Cow<'a, str> {
+    fn from(fragment: Fragment<'a>) -> Self {
+        match fragment {
             Fragment::Ascii(s) => Cow::Borrowed(s),
             Fragment::Bytes(bytes) => {
                 let mut out = String::with_capacity(bytes.len() * 3);
