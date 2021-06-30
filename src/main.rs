@@ -1,14 +1,15 @@
-use std::{borrow::Cow, str::Utf8Error};
-
 use clap::Clap;
 use nom::{
     branch::alt,
     bytes::complete::{take_till, take_while},
-    combinator::{eof, map, map_res},
+    combinator::{map, map_res},
     error::VerboseError,
-    multi::many_till,
+    multi::fold_many0,
 };
+use std::{borrow::Cow, str::Utf8Error};
 use thiserror::Error;
+
+type IResult<'a, T> = nom::IResult<&'a [u8], T, VerboseError<&'a [u8]>>;
 
 #[derive(Debug, Clone, Clap)]
 struct Opts {
@@ -39,13 +40,10 @@ impl<'a> Into<Cow<'a, str>> for Fragment<'a> {
     }
 }
 
-type IResult<'a, T> = nom::IResult<&'a [u8], T, VerboseError<&'a [u8]>>;
-
 #[derive(Debug, Error)]
 enum AhError {
     #[error("IO error")]
     Io(#[from] std::io::Error),
-
     #[error("Parse error")]
     Parse,
 }
@@ -53,18 +51,13 @@ enum AhError {
 fn main() -> Result<(), AhError> {
     let opts = Opts::parse();
     let input = std::fs::read(opts.input)?;
-    let parts = parse(&input)?;
-    let output = stringify(parts);
+    let output = parse(&input)?;
     std::fs::write(opts.output, output)?;
     Ok(())
 }
 
-fn stringify(fragments: Vec<Fragment>) -> String {
-    todo!()
-}
-
-fn parse(b: &[u8]) -> Result<Vec<Fragment>, AhError> {
-    let (_i, parts) = match fragments(b) {
+fn parse(b: &[u8]) -> Result<String, AhError> {
+    let (_i, s) = match fragments(b) {
         Ok(parts) => Ok(parts),
         Err(err) => {
             use nom::Err::*;
@@ -79,11 +72,15 @@ fn parse(b: &[u8]) -> Result<Vec<Fragment>, AhError> {
             Err(AhError::Parse)
         }
     }?;
-    Ok(parts)
+    Ok(s)
 }
 
-fn fragments(b: &[u8]) -> IResult<Vec<Fragment>> {
-    map(many_till(fragment, eof), |(fragment, _)| fragment)(b)
+fn fragments(b: &[u8]) -> IResult<String> {
+    fold_many0(fragment, String::new(), |mut s, fragment| {
+        let cow: Cow<_> = fragment.into();
+        s.push_str(&cow);
+        s
+    })(b)
 }
 
 fn fragment(b: &[u8]) -> IResult<Fragment> {
