@@ -1,6 +1,6 @@
 # ASCII Hexdump
 
-Converts unrecognized bytes to hexadecimal for easier analysis. For example, here are several lines taken from the EDRDG kradfile opened in VS Code as-is:
+Converts unrecognized bytes to hexadecimal for easier analysis. For example, this what several lines from the JIS X 0208-encoded EDRDG kradfile look like when opened in VS Code as-is:
 
 ```text
 # Aug 2005 - added ��; replaced � with ��
@@ -14,7 +14,7 @@ After using this tool, those lines become the following:
 # Jan 2006 - added B0 EC  to BA A3 
 ```
 
-See below for an example invocation:
+Below is an example invocation:
 
 ```text
 ascii_hexdump --input ./kradfile --output ./kradfile_dump.txt
